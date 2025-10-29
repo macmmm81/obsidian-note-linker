@@ -169,6 +169,75 @@ impl Note {
         }
         &self._sanitized_content
     }
+
+    /// Extracts headings (levels 1-3) from the original content.
+    /// Returns a vector of tuples (heading_text, anchor).
+    pub fn headings(&self) -> Vec<(String, String)> {
+        let mut res: Vec<(String, String)> = Vec::new();
+        use std::collections::HashMap;
+        let mut seen: HashMap<String, usize> = HashMap::new();
+        for line in self.content.lines() {
+            let trimmed = line.trim_start();
+            if !trimmed.starts_with('#') {
+                continue;
+            }
+            // count number of leading '#'
+            let mut chars = trimmed.chars();
+            let mut level: usize = 0;
+            while let Some(c) = chars.next() {
+                if c == '#' {
+                    level += 1;
+                } else {
+                    break;
+                }
+            }
+            // only consider headings that have a space after the hashes and level 1..=3
+            if level == 0 || level > 3 {
+                continue;
+            }
+            let rest = trimmed[level..].trim_start();
+            if rest.is_empty() {
+                continue;
+            }
+            let heading_text = rest.to_string();
+            let mut anchor = Note::slugify(&heading_text);
+            // disambiguate duplicate anchors the same way Obsidian does: append -1, -2 ...
+            let count = seen.entry(anchor.clone()).or_insert(0);
+            if *count > 0 {
+                anchor = format!("{}-{}", anchor, *count);
+            }
+            *count += 1;
+            res.push((heading_text, anchor));
+        }
+        res
+    }
+
+    fn slugify(s: &str) -> String {
+        // Basic slugify: lowercase, replace whitespace and consecutive non-alnum with '-', keep alnum and '-'.
+        let lower = s.to_lowercase();
+        let mut out = String::with_capacity(lower.len());
+        let mut last_was_dash = false;
+        for ch in lower.chars() {
+            if ch.is_ascii_alphanumeric() {
+                out.push(ch);
+                last_was_dash = false;
+            } else if ch.is_whitespace() || ch == '-' {
+                if !last_was_dash {
+                    out.push('-');
+                    last_was_dash = true;
+                }
+            } else {
+                // skip other punctuation, but convert sequences to a single dash
+                if !last_was_dash {
+                    out.push('-');
+                    last_was_dash = true;
+                }
+            }
+        }
+        // trim leading/trailing '-'
+        let trimmed = out.trim_matches('-').to_string();
+        trimmed
+    }
 }
 
 impl TryFrom<JsValue> for Note {

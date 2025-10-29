@@ -48,12 +48,26 @@ impl LinkMatch {
     }
 
     pub fn new_from_match(regex_match: &RegexMatch, note: &Note, target_note: &Note) -> Self {
-        let link_target_candidates: Vec<LinkTargetCandidate> = vec![LinkTargetCandidate::new(
-          target_note.title(),
-          target_note.path(),
-          target_note.aliases_vec(),
-            regex_match.capture_index
-        )];
+                // start with the note-level candidate
+                let mut link_target_candidates: Vec<LinkTargetCandidate> = vec![LinkTargetCandidate::new(
+                    target_note.title(),
+                    target_note.path(),
+                    target_note.aliases_vec(),
+                        regex_match.capture_index
+                )];
+
+                // add heading-level candidates (levels 1-3) from the target note
+                // heading path uses note path + "#" + slugified-heading
+                for (heading_text, anchor) in target_note.headings() {
+                        let heading_path = format!("{}#{}", target_note.path(), anchor);
+                        // no aliases for headings, selected_index = 0
+                        link_target_candidates.push(LinkTargetCandidate::new(
+                                heading_text,
+                                heading_path,
+                                &[],
+                                0,
+                        ));
+                }
         Self::new(
             regex_match.position.clone(),
             regex_match.matched_text.clone(),
